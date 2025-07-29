@@ -22,4 +22,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/mcp/tool_psa/', include('tool.rpc')),
     path('api/', include('tool.urls')),
+    path('api-token-auth/', include('rest_framework.urls')),
 ]
