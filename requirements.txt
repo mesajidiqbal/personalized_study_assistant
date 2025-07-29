@@ -3,4 +3,5 @@ structlog~=25.4.0
 python-decouple~=3.8
 djangorestframework~=3.16.0
 openai~=1.97.1
-gunicorn~=21.2.0
+gunicorn~=23.0.0
+django-cors-headers~=4.7.0
