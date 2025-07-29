@@ -10,6 +10,7 @@ from .models import StudyProgress
 
 log = structlog.get_logger(__name__)
 
+_tool_funcs = {}
 _registered_tools = []
 
 
@@ -59,6 +60,7 @@ def tool(name: str, description: str):
             }
         }
         _registered_tools.append(tool_metadata)
+        _tool_funcs[name] = func
 
         def wrapper(*args, **kwargs):
             log.info(f"Tool call: {name}", function_name=func.__name__, args=args, kwargs=kwargs)
@@ -81,6 +83,11 @@ def tool(name: str, description: str):
 def get_registered_tools_metadata():
     """Returns metadata for all registered tools."""
     return _registered_tools
+
+
+def get_tool_function(name):
+    """Retrieves the function associated with a tool name."""
+    return _tool_funcs.get(name)
 
 
 openai_client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)

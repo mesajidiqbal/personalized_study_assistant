@@ -1,46 +1,58 @@
 import structlog
 from django.urls import path
+from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from .functions import get_registered_tools_metadata
+from .functions import get_registered_tools_metadata, get_tool_function
 
 log = structlog.get_logger(__name__)
 
 
 @api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
-def tools_list(request):
-    # Support GET as well as POST for tool discovery
+def rpc_endpoint(request):
     if request.method == 'GET':
-        rpc_id = request.query_params.get("id", None)
-    else:  # POST
-        rpc_id = request.data.get("id", None)
-    log.info("tools_list_requested", rpc_id=rpc_id)
+        # Return InitializeResult
+        tools_metadata = get_registered_tools_metadata()
+        return Response({
+            "protocolVersion": "1.0",
+            "capabilities": {},
+            "serverInfo": {
+                "name": "Personalized Study Assistant",
+                "version": "1.0.0",
+                "description": "MCP tool endpoint"
+            },
+            "tools": tools_metadata
+        })
+
+    # POST path: call the named tool
+    rpc_id = request.data.get("id")
+    method_name = request.data.get("method")
+    params = request.data.get("params", {})
+
+    if not method_name:
+        return Response({"jsonrpc": "2.0", "id": rpc_id,
+                         "error": {"code": -32600, "message": "Method not provided"}},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    func = get_tool_function(method_name)
+    if not func:
+        return Response({"jsonrpc": "2.0", "id": rpc_id,
+                         "error": {"code": -32601, "message": f"Method '{method_name}' not found"}},
+                        status=status.HTTP_404_NOT_FOUND)
 
     try:
-        tools_metadata = get_registered_tools_metadata()
-        log.info("tools_metadata_generated", num_tools=len(tools_metadata))
-        return Response({
-            "jsonrpc": "2.0",
-            "id": rpc_id,
-            "result": {
-                "tools": tools_metadata
-            }
-        })
+        result = func(**params)
+        return Response({"jsonrpc": "2.0", "id": rpc_id, "result": result})
     except Exception as e:
-        log.error("tools_list_generation_failed", error=str(e), exc_info=True, rpc_id=rpc_id)
-        return Response({
-            "jsonrpc": "2.0",
-            "id": rpc_id,
-            "error": {
-                "code": -32603,
-                "message": f"Failed to retrieve tools list: {e}"
-            }
-        }, status=500)
+        log.error("tool_execution_error", method=method_name, error=str(e), exc_info=True)
+        return Response({"jsonrpc": "2.0", "id": rpc_id,
+                         "error": {"code": -32603, "message": f"Tool execution error: {e}"}},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 urlpatterns = [
-    path('', tools_list, name='tools_list_rpc'),
+    path('', rpc_endpoint, name='tools_rpc'),
 ]
