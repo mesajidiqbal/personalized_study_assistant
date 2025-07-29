@@ -9,11 +9,14 @@ from .functions import get_registered_tools_metadata
 log = structlog.get_logger(__name__)
 
 
-@api_view(['POST'])
+@api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
 def tools_list(request):
-    """JSON-RPC endpoint to list all available tools and their schemas."""
-    rpc_id = request.data.get("id", None)
+    # Support GET as well as POST for tool discovery
+    if request.method == 'GET':
+        rpc_id = request.query_params.get("id", None)
+    else:  # POST
+        rpc_id = request.data.get("id", None)
     log.info("tools_list_requested", rpc_id=rpc_id)
 
     try:
